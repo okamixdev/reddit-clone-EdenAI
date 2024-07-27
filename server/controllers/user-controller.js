@@ -118,6 +118,7 @@ const login = async (req, res) => {
         email: userData.email,
         username: userData.username,
         posts: userData.posts,
+        communities: [userData.communities],
       },
       Token,
     });

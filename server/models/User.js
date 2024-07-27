@@ -44,6 +44,12 @@ const UserSchema = new Schema(
         ref: "Post",
       },
     ],
+    communities: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Community",
+      },
+    ],
   },
   {
     toJSON: {

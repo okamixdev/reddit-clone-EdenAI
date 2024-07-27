@@ -2,6 +2,7 @@
 // Dependencies
 const Post = require("../models/Post");
 const User = require("../models/User");
+const Comunity = require("../models/Community");
 const fs = require("fs");
 const path = require("path");
 const { isFollowing } = require("../helpers/followUID");
@@ -30,11 +31,17 @@ const createPost = async (req, res) => {
     const postData = await Post.create({
       user: req.userData.id,
       text: params.text,
+      community: params.comunity,
     });
     // const postInfo = await newPost.save();
     // add to user
     const userInfo = await User.findOneAndUpdate(
       { _id: req.userData.id },
+      { $push: { posts: postData._id } }
+    );
+
+    const communityInfo = await Comunity.findOneAndUpdate(
+      { _id: params.comunity },
       { $push: { posts: postData._id } }
     );
 
@@ -44,6 +51,7 @@ const createPost = async (req, res) => {
       message: "Post created successfully!",
       postData,
       userInfo,
+      communityInfo,
     });
   } catch (err) {
     console.log(err);
@@ -85,26 +93,15 @@ const getSinglePost = async (req, res) => {
 const getAllPost = async (req, res) => {
   // Get the user ID.
   const userID = await req.userData.id;
-
-  // Control the webpage.
-  let page = 1;
-
-  // Sets page to whatever page the user wants to display.
-  if (req.params.page) {
-    page = await req.params.page;
-  }
-
-  // Sets the itemps we are going to display per page.
-  const itemsPerPage = 5;
+  console.log(userID);
 
   try {
     // Find the user in the DB and then display all the posts organized.
     const userPostInfo = await Post.find({ user: userID })
       .sort("-created_at")
-      .populate("user", "-password -__V -role")
-      .paginate(page, itemsPerPage)
-      .exec();
+      .populate("user", "-password");
 
+    console.log("inside");
     // If there is no posts on the user then returns error.
     if (userPostInfo.lenght <= 0) {
       // Returns an error.
@@ -114,17 +111,11 @@ const getAllPost = async (req, res) => {
       });
     }
 
-    // Calculates the total of posts in the user model.
-    let total = await Post.find({ user: userID }).count();
-
     // Return a success and the post information.
     return res.status(200).send({
       status: "SUCESS",
       message: "Post Information Below:",
       userPostInfo,
-      page,
-      pages: Math.ceil(total / itemsPerPage),
-      total,
     });
   } catch (err) {
     // Returns an error if any.
@@ -203,40 +194,6 @@ const uploadImage = async (req, res) => {
 
   // Save the image to the DB
   try {
-    // // // Update the user
-    // const postImgInfo = await Post.findByIdAndUpdate({ user: req.user.id, _id: postID }, { file: req.file.filename }, { new: true })
-    // // Return result
-    // res.status(200).send({
-    //     status: 'SUCCESS',
-    //     message: 'Image uploaded succesfully',
-    //     post: postImgInfo,
-    //     post_image: image,
-    //     // result
-    // })
-
-    // cloudinary.uploader.upload(req.file.path, async (err, result) => {
-    //     console.log(req.file)
-    //     if (err) {
-    //         console.log(err);
-    //         return res.status(500).send({
-    //             status: 'ERROR',
-    //             message: 'Error with cloudinary'
-    //         })
-    //     }
-
-    //     //Update the user
-    //     const postImgInfo = await Post.findByIdAndUpdate({ user: req.user.id, _id: postID }, { file: result.secure_url }, { new: true })
-    //     // Return result
-    //     res.status(200).send({
-    //         status: 'SUCCESS',
-    //         message: 'Image uploaded succesfully',
-    //         post: postImgInfo,
-    //         post_image: image,
-    //         result,
-    //         pathInfo: req.file.path
-    //     })
-    // })
-
     const options = { width: 500, height: 500, crop: "fill" };
 
     let streamUpload = (req) => {
@@ -350,6 +307,82 @@ const feed = async (req, res) => {
   }
 };
 
+const handleLike = async (req, res) => {
+  // Get the id of the post that is requested to delete
+  const postID = await req.body.id;
+
+  const likeValidation = await Post.findOne({
+    _id: postID,
+    likes: req.userData.id,
+  });
+
+  try {
+    if (likeValidation) {
+      return res.status(400).json({
+        status: "ERROR",
+        message: "Already Follow",
+      });
+    }
+
+    // Find the post to delete and delete it from the DB
+    const postInfo = await Post.findOneAndUpdate(
+      { _id: postID },
+      { $push: { likes: req.userData.id } }
+    );
+
+    // Return a success and the post information.
+    return res.status(200).send({
+      status: "SUCESS",
+      message: "Post Information Below:",
+      postInfo,
+    });
+  } catch (err) {
+    // Returns an error if any.
+    return res.status(500).send({
+      status: "ERROR",
+      message: "Error at deleting the post from the DB",
+    });
+  }
+};
+
+const undoHandleLike = async (req, res) => {
+  // Get the id of the post that is requested to delete
+  const postID = await req.body.id;
+
+  const likeValidation = await Post.findOne({
+    _id: postID,
+    likes: req.userData.id,
+  });
+
+  try {
+    if (!likeValidation) {
+      return res.status(400).json({
+        status: "ERROR",
+        message: "You dont like it tho",
+      });
+    }
+
+    // Find the post to delete and delete it from the DB
+    const postInfo = await Post.findOneAndUpdate(
+      { _id: postID },
+      { $pull: { likes: req.userData.id } }
+    );
+
+    // Return a success and the post information.
+    return res.status(200).send({
+      status: "SUCESS",
+      message: "Post Information Below:",
+      postInfo,
+    });
+  } catch (err) {
+    // Returns an error if any.
+    return res.status(500).send({
+      status: "ERROR",
+      message: "Error at deleting the post from the DB",
+    });
+  }
+};
+
 module.exports = {
   createPost,
   getSinglePost,
@@ -358,4 +391,6 @@ module.exports = {
   uploadImage,
   showImage,
   feed,
+  handleLike,
+  undoHandleLike,
 };

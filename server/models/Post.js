@@ -13,6 +13,10 @@ const PostSchema = new Schema({
     type: String,
     required: true,
   },
+  community: {
+    type: Schema.Types.ObjectId,
+    ref: "Comunity",
+  },
   likes: [
     {
       type: Schema.Types.ObjectId,
